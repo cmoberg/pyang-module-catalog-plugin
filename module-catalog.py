@@ -4,14 +4,13 @@ from __future__ import print_function
 
 import optparse
 import sys
-import re
 import string
 import logging
-
 import types
 import StringIO
-
 import json
+from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import tostring
 
 from pyang import plugin
 from pyang import statements
@@ -19,6 +18,14 @@ from pyang import util
 
 def pyang_plugin_init():
     plugin.register_plugin(ModuleCatalogPlugin())
+
+def dict_to_xml(tag, d):
+    elem = Element(tag)
+    for key, val in d.items():
+        child = Element(key)
+        child.text = str(val)
+        elem.append(child)
+    return elem
 
 class ModuleCatalogPlugin(plugin.PyangPlugin):
 
@@ -45,33 +52,26 @@ class ModuleCatalogPlugin(plugin.PyangPlugin):
         ctx.implicit_errors = False
 
     def print_json(self, data):
+        js = {"module": data }
         print(json.dumps(data))
 
     def print_xml(self, data):
-        pass
+        xml = dict_to_xml("module", data)
+        print(tostring(xml))
 
     def emit(self, ctx, modules, fd):
 		me = ModuleCatalogEmitter()
 		result = me.emit(ctx, modules)
-		# print(result)
 		if ctx.opts.outputFormat == 'json':
 			self.print_json(result)
 		else:
-			print_xml(result)
+			self.print_xml(result)
 
 class ModuleCatalogEmitter(object):
 	def emit(self, ctx, modules):
 		res = {}
 		for module in modules:
-
-		# Here are the top-level leafs from the draft:
-		# +--rw name                string -> is the 'module' statement
-		# +--rw namespace?          string DONE
-		# +--rw prefix?             string DONE
-		# +--rw revision?           string DONE
-		# +--rw summary?            string -> Can't be inferred from module
-		# +--rw module-version?     string -> Can't be inferred from module
-
+			res['revision'] = util.get_latest_revision(module)
 			res['name'] = module.arg
 			for statement in ['namespace', 'prefix', 'revision', 'module-version']:
 				stmt = module.search_one(statement)
